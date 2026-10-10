@@ -1,0 +1,3 @@
+pair_id,group,thread_id
+example-001,control,replace-with-control-thread-id
+example-001,treatment,replace-with-laya-guided-thread-id

@@ -1,0 +1,18 @@
+# build e binários
+build/
+dist/
+prototype/build/
+prototype/dist/
+__pycache__/
+*.pyc
+*.tk.spec
+*.patch
+
+# notas e dados locais (podem conter contexto privado)
+notes/
+prototype/experiments/
+.claude-flow/
+.swarm/
+.claude/
+*.sqlite3*
+*.log
