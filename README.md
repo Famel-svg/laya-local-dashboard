@@ -29,7 +29,56 @@ raciocínio em várias etapas. Aqui ele roda como servidor [MCP](https://modelco
 local (Streamable HTTP), e agentes de código o consultam quando têm uma escolha estruturada a fazer —
 por exemplo, qual ferramenta usar entre um catálogo fechado (`DECISION_CONTRACT.md`).
 
-Checkpoints usados: `english` e `multilingual`, escolhidos automaticamente pelo idioma do pedido.
+### Como funciona por dentro
+
+Um LLM comum é *autoregressivo*: escreve a resposta token por token, e cada token custa uma passada
+pela rede. Para decidir entre três opções ele ainda assim "redige" um texto, que depois precisa ser
+interpretado. O Laya segue outro caminho:
+
+1. **Entrada.** O estado (texto, e-mail, ticket ou JSON) e as perguntas tipadas são codificados
+   juntos. Cada pergunta leva suas instruções e seus critérios — os rótulos de um `choice`, os
+   níveis de um `score`.
+2. **Uma passada só.** Um *encoder* (família BERT, não um gerador) lê tudo de uma vez. Não há laço
+   de geração: várias perguntas sobre o mesmo estado são respondidas na mesma passada.
+3. **Saída numérica.** Em vez de texto, sai uma distribuição de probabilidade por pergunta. Um
+   `choice` com três opções devolve três números que somam 1; um `noul` devolve P(verdadeiro).
+   Não há o que interpretar e não há como "alucinar" uma opção fora da lista.
+4. **Probabilidades calibradas.** O treino usa aprendizado por reforço contra regras de pontuação
+   estritamente próprias (RLCD), que punem excesso de confiança. A intenção é que 0,8 signifique
+   acertar perto de 80% das vezes, o que permite usar a confiança como critério de decisão:
+   abaixo de um limiar, o sistema cai num caminho seguro em vez de seguir a sugestão.
+5. **Roteamento por idioma.** Um roteador em Python puro detecta escrita e idioma e escolhe o
+   checkpoint antes de carregar qualquer coisa na GPU.
+
+| Checkpoint | Encoder | Parâmetros | Uso |
+|---|---|---|---|
+| `english` | ModernBERT-large | 421 mi | texto em inglês |
+| `multilingual` | mmBERT-base | 322 mi | mais de 100 idiomas, incluindo português |
+| `typed-decisions` | ModernBERT-large | 421 mi | fluxos específicos de decisão tipada |
+
+Exemplo de pergunta e resposta:
+
+```python
+questions = {
+    "proximo_passo": {
+        "type": "choice",
+        "instructions": "Escolha o melhor próximo passo.",
+        "criteria": {"inspecionar": "ler os arquivos antes",
+                     "editar": "aplicar a mudança agora",
+                     "testar": "rodar os testes"},
+    }
+}
+# resposta
+{"choice": "editar",
+ "probabilities": {"inspecionar": 0.05, "editar": 0.67, "testar": 0.28},
+ "answer_confidence": 0.67}
+```
+
+Os autores informam 33 ms por pergunta numa GPU T4. Nesta máquina (RTX 5060 Ti) medi 34 a 39 ms por
+chamada com três perguntas juntas. O limite da abordagem é o mesmo que a torna rápida: ele escolhe
+entre opções que você fornece, não cria opções nem explica o porquê.
+
+Checkpoints usados aqui: `english` e `multilingual`, escolhidos automaticamente pelo idioma do pedido.
 
 ## Por que este painel existe
 
