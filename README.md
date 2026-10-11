@@ -29,6 +29,31 @@ raciocínio em várias etapas. Aqui ele roda como servidor [MCP](https://modelco
 local (Streamable HTTP), e agentes de código o consultam quando têm uma escolha estruturada a fazer —
 por exemplo, qual ferramenta usar entre um catálogo fechado (`DECISION_CONTRACT.md`).
 
+### Por que uso o Laya
+
+Agentes de código tomam muitas decisões pequenas e estruturadas ao longo de uma tarefa: qual caminho
+seguir, qual ferramenta ou skill usar, para qual modelo delegar uma subtarefa. Quero que essas
+escolhas saiam de um modelo local especializado, que responde em dezenas de milissegundos, devolve
+a probabilidade de cada opção e deixa registro auditável do que foi perguntado e respondido.
+
+Hoje ele roda em **modo sombra**: recomenda, a recomendação é registrada, e nada é executado por
+causa dela. O painel existe para acompanhar essa fase com dados em vez de impressão.
+
+O estado atual, medido com `tools/eval_model_router.py` (28 tarefas rotuladas por uma tabela fixa de
+delegação, em português e em inglês, sem nenhum treino adicional):
+
+| Abordagem | Acerto do nível de modelo |
+|---|---|
+| Preset `router` do pacote (dificuldade mapeada para nível) | 24/56 (43%), nunca escolhe o nível mais forte |
+| Pergunta `choice` com os três níveis descritos | 34/56 (61%) |
+| Idem, só respostas com confiança >= 0,6 | 23/33 (70%) |
+| Referência: responder sempre o nível do meio | 20/56 (36%) |
+
+Melhor que o acaso, insuficiente para decidir sozinho. É coerente com o que os próprios autores
+dizem — os checkpoints são uma base para especializar, não um decisor pronto — e define o próximo
+passo: ajustar o modelo com o histórico de decisões que a auditoria já guarda. O conjunto é pequeno
+e os rótulos são meus; trate os números como indicação.
+
 ### Como funciona por dentro
 
 Um LLM comum é *autoregressivo*: escreve a resposta token por token, e cada token custa uma passada
